@@ -24,7 +24,6 @@ void setup() {
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
   left_motor.update_speed(255);
   right_motor.update_speed(255);
 }
