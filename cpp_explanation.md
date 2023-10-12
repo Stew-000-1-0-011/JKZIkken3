@@ -119,3 +119,7 @@ is a syntax of function declaration.
 
 # noexcept
 `noexcept` is explicit exception specification. Don't worry about this.
+
+# コンセプト concept
+コンセプトは、テンプレートの型パラメータに制約を与えるための機能である。
+詳細はhttps://cpprefjp.github.io/lang/cpp20/concepts.html を参照。
