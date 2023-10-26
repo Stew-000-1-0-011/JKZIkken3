@@ -2,10 +2,10 @@
 
 #include "mystd/integer_types.hpp"
 #include "mystd/utility.hpp"
-#include "fake_arduino.hpp"
 
+#include "sanitized_arduino.hpp"
 
-namespace jkb21::impl
+namespace jkb21::motor::impl
 {
 	using namespace mystd::integer_types;
 
@@ -43,14 +43,17 @@ namespace jkb21::impl
 
 	struct Motor final
 	{
-		const u8 in1_pin;
-		const u8 in2_pin;
+		u8 in1_pin;
+		u8 in2_pin;
 
 		RetainPrevious<Mode> mode;
 		u8 pwm;
 
 		static auto make(const u8 in1_pin, const u8 in2_pin) noexcept -> Motor
 		{
+			pinMode(in1_pin, OUTPUT);
+			pinMode(in2_pin, OUTPUT);
+
 			return Motor
 			{
 				.in1_pin = in1_pin,
@@ -58,13 +61,6 @@ namespace jkb21::impl
 				.mode = decltype(mode)::make(Mode::Stop),
 				.pwm = 0
 			};
-		}
-
-		// pin initialization
-		void enable() const noexcept
-		{
-			pinMode(in1_pin, OUTPUT);
-			pinMode(in2_pin, OUTPUT);
 		}
 
 		void update() noexcept
@@ -110,7 +106,8 @@ namespace jkb21::impl
 	};
 }
 
-namespace jkb21
+namespace jkb21::motor
 {
 	using impl::Motor;
+	using impl::Mode;
 }

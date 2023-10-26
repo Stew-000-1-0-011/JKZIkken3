@@ -1,6 +1,6 @@
 #pragma once
 
-#include <initializer_list>
+#include "initializer_list.hpp"
 #include "type_traits.hpp"
 
 namespace mystd::math_algo {
@@ -31,5 +31,10 @@ namespace mystd::math_algo {
 	inline constexpr auto signbit(const T& v) noexcept -> bool
 	{
 		return v < 0;
+	}
+
+	inline constexpr auto safe_add(const auto l, const auto r)
+	{
+		return (r > 0 && l > 127 - r) ? 127 : (r < 0 && l < -128 - r) ? -128 : l + r;
 	}
 }
