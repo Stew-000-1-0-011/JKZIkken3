@@ -1,3 +1,4 @@
+#include "Arduino.h"
 #pragma once
 
 #include "mystd/integer_types.hpp"
@@ -13,7 +14,7 @@ namespace jkb21::photo::impl
 
 	/// @brief  @todo: この値は適当
 	constexpr u32 photo_max = 1000;
-	constexpr u32 photo_min = 770;
+	constexpr u32 photo_min = 800;
 	constexpr i8 linepos_max = 64;
 
 	struct Photo final
@@ -33,7 +34,7 @@ namespace jkb21::photo::impl
       // Serial.print("Photo::read ");
       // Serial.println(raw);
 			const u32 cliped = mystd::math_algo::max(photo_min, mystd::math_algo::min(photo_max, raw));
-			return 255 * cliped / (photo_max - photo_min);
+			return 255 * (photo_max - cliped) / (photo_max - photo_min);
 		}
 
     auto raw_read() const noexcept -> u16
@@ -56,43 +57,54 @@ namespace jkb21::photo::impl
 
 		auto fusion() noexcept -> i8
 		{
-			i16 sensor_sum = 0;
+      u16 sensor_values[n]{};
 
-			u8 sensor_values[n];
+      constexpr u8 sensor_read_count = 20;
+      for(u8 i = 0; i < sensor_read_count; ++i)
+      {
+        for(u8 i_n = 0; i_n < n; ++i_n)
+        {
+          sensor_values[i_n] += this->photos[i_n].read();
+        }
+      }
 
-			for(u8 i = 0; i < n; ++i)
-			{
-				sensor_values[i] = this->photos[i].read();
-				sensor_sum += sensor_values[i];
-			}
+      u16 sensor_sum = 0;
+      for(const u16 v : sensor_values) sensor_sum += v;
 
-			i16 linepos_sum = 0;
-			for(u8 i = 0; i < n; ++i)
-			{
-				linepos_sum += (i16)sensor_values[i] * this->photos[i].position;
-			}
+      i32 linepos_sum = 0;
+      for(u8 i_n = 0; i_n < n; ++i_n)
+      {
+        linepos_sum += (i16)sensor_values[i_n] * this->photos[i_n].position;
+      }
 
-			return linepos_sum / sensor_sum;
+      return linepos_sum / sensor_sum;
 		}
 
     void show() noexcept
     {
-      for(const auto& photo : photos)
+      for(u8 i = 0; const auto& photo : photos)
       {
+        Serial.print("show");
+        Serial.print(i);
+        Serial.print(":");
         Serial.print(photo.read());
-        Serial.print(", ");
+        Serial.print(",");
+        ++i;
       }
-      Serial.println();
     }
 
     void raw_show() noexcept
     {
-      for(const auto& photo : photos)
+      for(u8 i = 0; const auto& photo : photos)
       {
+        Serial.print("raw_show");
+        Serial.print(i);
+        Serial.print(":");
         Serial.print(photo.raw_read());
-        Serial.print(", ");
+        Serial.print(",");
+
+        ++i;
       }
-      Serial.println();
     }
 	};
 }
