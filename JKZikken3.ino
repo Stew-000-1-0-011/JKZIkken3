@@ -21,7 +21,8 @@ void setup()
   auto left_motor = Motor::make(10, 11);
   auto right_motor = Motor::make(3,9);
   
-  auto photo_line = PhotoLine<3>::make({Photo::make(A0, -124), Photo::make(A1, -41), Photo::make(A2, 124)});
+  // auto photo_line = PhotoLine<3>::make({Photo::make(A0, -124), Photo::make(A1, -41), Photo::make(A2, 124)});
+  auto photo_line = PhotoLine<3>::make({Photo::make(A0, -124), Photo::make(A1, 0), Photo::make(A2, 124)});
   auto pid = Pid<i8>::make(1, 0, 0);
 
   left_motor.mode.value = Mode::CounterClockwise;

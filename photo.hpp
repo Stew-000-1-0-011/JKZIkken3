@@ -55,9 +55,9 @@ namespace jkb21::photo::impl
 			return result;
 		}
 
-		auto fusion() noexcept -> i8
+		auto fusion() noexcept -> i32
 		{
-      u16 sensor_values[n]{};
+      i32 sensor_values[n]{};
 
       constexpr u8 sensor_read_count = 20;
       for(u8 i = 0; i < sensor_read_count; ++i)
@@ -68,13 +68,13 @@ namespace jkb21::photo::impl
         }
       }
 
-      u16 sensor_sum = 0;
-      for(const u16 v : sensor_values) sensor_sum += v;
+      i32 sensor_sum = 0;
+      for(const i32 v : sensor_values) sensor_sum += v;
 
       i32 linepos_sum = 0;
       for(u8 i_n = 0; i_n < n; ++i_n)
       {
-        linepos_sum += (i16)sensor_values[i_n] * this->photos[i_n].position;
+        linepos_sum += (i32)sensor_values[i_n] * this->photos[i_n].position;
       }
 
       return linepos_sum / sensor_sum;
