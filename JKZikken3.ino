@@ -22,15 +22,15 @@ void setup()
   using jkb21::photo::PhotoLine;
   using jkb21::pid::Pid;
 
-  constexpr u8 max_speed = 70;
-  constexpr i8 straight_threshold = 100;
+  constexpr u8 max_speed = 80;
+  constexpr i8 straight_threshold = 50;
 
   auto left_motor = Motor::make(10, 11);
   auto right_motor = Motor::make(3,9);
   
   // auto photo_line = PhotoLine<3>::make({Photo::make(A0, -124), Photo::make(A1, -41), Photo::make(A2, 124)});
   auto photo_line = PhotoLine<3>::make({Photo::make(A0, -124), Photo::make(A1, 0), Photo::make(A2, 124)});
-  auto pid = Pid<i8>::make(1, 0, 0);
+  auto pid = Pid<i8>::make(10, 0, 0);
 
   constexpr auto left_direction = Mode::CounterClockwise;
   constexpr auto right_direction = Mode::Clockwise;
@@ -39,6 +39,9 @@ void setup()
   right_motor.mode.value = right_direction;
 
   State state = State::Default;
+  auto line_pos = 0;
+
+  // u8 sstate = 0;
 
   while(true)
   {
@@ -46,32 +49,28 @@ void setup()
     {
       case State::Default:
       {
-        const auto line_pos = photo_line.fusion();
+        if(photo_line.is_lost())
+        {
+          // state = State::Lost;
+          break;
+        }
+
+        line_pos = photo_line.fusion();
         Serial.print("line_pos:");
         Serial.print(line_pos);
         Serial.print(",");
 
-        const auto pid_result = pid.calc(line_pos, 0);
+        const auto pid_result = pid.calc(line_pos, 0) / 10;
         pid.update(line_pos);
 
         Serial.print("pid_result:");
         Serial.print(pid_result);
         Serial.print(",");
 
-        if(photo_line.is_lost())
-        {
-          state = State::Lost;
-          left_motor.mode.value = flip_mode(left_direction);
-          right_motor.mode.value = flip_mode(right_direction);
-
-          left_motor.pwm = 64;
-          right_motor.pwm = 64;
-        }
-
-        if(photo_line.is_all_black())
-        {
-          break;
-        }
+        // if(photo_line.is_all_black())
+        // {
+        //   break;
+        // }
 
         if(pid_result > straight_threshold)
         {
@@ -105,7 +104,29 @@ void setup()
       break;
     }
 
-    Serial.println(state == State::Default ? "default" : "lost");
+    // Serial.println(state == State::Default ? "default" : "lost");
+
+    // if(photo_line.is_lost())
+    // {
+    //   sstate++;
+    //   sstate %= 4;
+    // }
+
+    // if(!(sstate % 2))
+    // {
+    //   left_motor.pwm = max_speed;
+    //   right_motor.pwm = max_speed;
+    // }
+    // else if(sstate = 1)
+    // {
+    //   left_motor.pwm = max_speed;
+    //   right_motor.pwm = 0;
+    // }
+    // else
+    // {
+    //   left_motor.pwm = 0;
+    //   right_motor.pwm = max_speed;
+    // }
 
     left_motor.update();
     right_motor.update();

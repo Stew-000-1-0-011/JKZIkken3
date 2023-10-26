@@ -69,7 +69,25 @@ namespace jkb21::photo::impl
       i32 sensor_sum = 0;
       for(const i32 v : sensor_values) sensor_sum += v;
 
-      return sensor_sum < 10 * sensor_read_count * n;
+      return sensor_sum < 20 * sensor_read_count * n;
+    }
+
+    auto is_not_lost() noexcept -> bool
+    {
+      i32 sensor_values[n]{};
+
+      for(u8 i = 0; i < sensor_read_count; ++i)
+      {
+        for(u8 i_n = 0; i_n < n; ++i_n)
+        {
+          sensor_values[i_n] += this->photos[i_n].read();
+        }
+      }
+
+      i32 sensor_sum = 0;
+      for(const i32 v : sensor_values) sensor_sum += v;
+
+      return sensor_sum > 50 * sensor_read_count * n;
     }
 
     auto is_all_black() noexcept -> bool
