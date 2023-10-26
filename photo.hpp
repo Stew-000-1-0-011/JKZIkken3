@@ -16,6 +16,7 @@ namespace jkb21::photo::impl
 	constexpr u32 photo_max = 1000;
 	constexpr u32 photo_min = 800;
 	constexpr i8 linepos_max = 64;
+  constexpr u8 sensor_read_count = 20;
 
 	struct Photo final
 	{
@@ -57,7 +58,6 @@ namespace jkb21::photo::impl
     {
       i32 sensor_values[n]{};
 
-      constexpr u8 sensor_read_count = 20;
       for(u8 i = 0; i < sensor_read_count; ++i)
       {
         for(u8 i_n = 0; i_n < n; ++i_n)
@@ -69,14 +69,34 @@ namespace jkb21::photo::impl
       i32 sensor_sum = 0;
       for(const i32 v : sensor_values) sensor_sum += v;
 
-      return (sensor_sum < 1000);
+      return sensor_sum < 10 * sensor_read_count * n;
+    }
+
+    auto is_all_black() noexcept -> bool
+    {
+      i32 sensor_values[n]{};
+
+      for(u8 i = 0; i < sensor_read_count; ++i)
+      {
+        for(u8 i_n = 0; i_n < n; ++i_n)
+        {
+          sensor_values[i_n] += this->photos[i_n].read();
+        }
+      }
+
+      i32 sensor_sum = 0;
+      for(const i32 v : sensor_values) sensor_sum += v;
+
+      Serial.print("sensor_sum:");
+      Serial.println(sensor_sum / sensor_read_count / n);
+
+      return sensor_sum > 245 * sensor_read_count * n;
     }
 
 		auto fusion() noexcept -> i32
 		{
       i32 sensor_values[n]{};
 
-      constexpr u8 sensor_read_count = 20;
       for(u8 i = 0; i < sensor_read_count; ++i)
       {
         for(u8 i_n = 0; i_n < n; ++i_n)

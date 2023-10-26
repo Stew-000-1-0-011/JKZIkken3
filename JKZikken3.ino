@@ -68,6 +68,11 @@ void setup()
           right_motor.pwm = 64;
         }
 
+        if(photo_line.is_all_black())
+        {
+          break;
+        }
+
         if(pid_result > straight_threshold)
         {
           left_motor.pwm = max_speed;
@@ -100,7 +105,7 @@ void setup()
       break;
     }
 
-    Serial.print(state == State::Default ? "default" : "lost");
+    Serial.println(state == State::Default ? "default" : "lost");
 
     left_motor.update();
     right_motor.update();
