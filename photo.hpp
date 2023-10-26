@@ -31,10 +31,8 @@ namespace jkb21::photo::impl
 		auto read() const noexcept -> u8
 		{
 			const i32 raw = analogRead(this->pin);
-      // Serial.print("Photo::read ");
-      // Serial.println(raw);
 			const u32 cliped = mystd::math_algo::max(photo_min, mystd::math_algo::min(photo_max, raw));
-			return 255 * (photo_max - cliped) / (photo_max - photo_min);
+			return 255 * (cliped - photo_min) / (photo_max - photo_min);
 		}
 
     auto raw_read() const noexcept -> u16
@@ -54,6 +52,25 @@ namespace jkb21::photo::impl
 			for(usize i = 0; i < n; ++i) result.photos[i] = photos[i];
 			return result;
 		}
+
+    auto is_lost() noexcept -> bool
+    {
+      i32 sensor_values[n]{};
+
+      constexpr u8 sensor_read_count = 20;
+      for(u8 i = 0; i < sensor_read_count; ++i)
+      {
+        for(u8 i_n = 0; i_n < n; ++i_n)
+        {
+          sensor_values[i_n] += this->photos[i_n].read();
+        }
+      }
+
+      i32 sensor_sum = 0;
+      for(const i32 v : sensor_values) sensor_sum += v;
+
+      return (sensor_sum < 1000);
+    }
 
 		auto fusion() noexcept -> i32
 		{

@@ -41,6 +41,22 @@ namespace jkb21::motor::impl
 		Brake
 	};
 
+  inline auto flip_mode(const Mode m) noexcept -> Mode
+  {
+    switch(m)
+    {
+      case Mode::Stop:
+      case Mode::Brake:
+      return m;
+
+      case Mode::Clockwise:
+      return Mode::CounterClockwise;
+
+      case Mode::CounterClockwise:
+      return Mode::Clockwise;
+    }
+  }
+
 	struct Motor final
 	{
 		u8 in1_pin;
@@ -110,4 +126,5 @@ namespace jkb21::motor
 {
 	using impl::Motor;
 	using impl::Mode;
+  using impl::flip_mode;
 }
