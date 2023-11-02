@@ -1,141 +1,424 @@
-// 
-// TA7291PにPWMをかけて無理やり動かす
-#include "motor.hpp"
-#include "photo.hpp"
-#include "pid.hpp"
+#include "mystd/integer_types.hpp"
+#include "sanitized_arduino.hpp"
 
-enum class State : mystd::integer_types::u8
+namespace mystd {
+  template<class T>
+  auto max(const T l, const T r) noexcept -> T
+  {
+    return l < r ? r : l;
+  }
+
+  template<class T>
+  auto min(const T l, const T r) noexcept -> T
+  {
+    return l < r ? l : r;
+  }
+}
+
+namespace jkb21
 {
-  Default,
-  Lost
-};
+  struct Motor final
+  {
+    u8 in1_pin;
+    u8 in2_pin;
+    bool is_forward_cw;
+
+    static auto make(const u8 in1_pin, const u8 in2_pin, const bool is_forward_cw) noexcept -> Motor
+    {
+      return Motor{in1_pin, in2_pin, is_forward_cw};
+    }
+
+    void init() noexcept
+    {
+      pinMode(in1_pin, OUTPUT);
+      pinMode(in2_pin, OUTPUT);
+    }
+
+    void forward(u8 pwm) noexcept
+    {
+      if(is_forward_cw) {
+        analogWrite(in1_pin, pwm);
+        analogWrite(in2_pin, 0);
+      } else {
+        analogWrite(in1_pin, 0);
+        analogWrite(in2_pin, pwm);
+      }
+    }
+
+    void backward(u8 pwm) noexcept
+    {
+      if(is_forward_cw) {
+        analogWrite(in1_pin, 0);
+        analogWrite(in2_pin, pwm);
+      } else {
+        analogWrite(in1_pin, pwm);
+        analogWrite(in2_pin, 0);
+      }
+    }
+
+    void brake() noexcept
+    {
+      analogWrite(in1_pin, 255);
+      analogWrite(in2_pin, 255);
+    }
+
+    void stop() noexcept
+    {
+      analogWrite(in1_pin, 0);
+      analogWrite(in2_pin, 0);
+    }
+  };
+
+  struct Photo final {
+
+    static constexpr u16 photo_min = 894;
+    static constexpr u16 photo_max = 1020;
+
+    u8 pin;
+
+    static auto make(const u8 pin) noexcept -> Photo
+    {
+      return Photo{pin};
+    }
+    
+    void init() noexcept
+    {
+      pinMode(pin, INPUT);
+    }
+
+    auto read() noexcept -> u8
+    {
+      const u16 raw = analogRead(this->pin);
+			const u16 cliped = mystd::max<u16>(photo_min, mystd::min<u16>(photo_max, raw));
+			return 255 * (cliped - photo_min) / (photo_max - photo_min);
+    }
+  };
+}
+
+namespace Mains {
+  using namespace mystd::integer_types;
+  using mystd::integer_types::u8;
+  using mystd::integer_types::u16;
+  using mystd::integer_types::u32;
+
+  using jkb21::Motor;
+  using jkb21::Photo;
+
+  const auto left_motor = Motor::make(10, 11, true);
+  const auto right_motor = Motor::make(3, 9, false);
+  Photo photos[5] = {
+    Photo::make(A4)
+    , Photo::make(A2)
+    , Photo::make(A1)
+    , Photo::make(A0)
+    , Photo::make(A3)
+  };
+
+  constexpr u8 threthold = 50;
+  constexpr u8 sample_count = 20;
+
+  constexpr u8 max_speed = 80;
+  constexpr u8 middle_speed = 70;
+  constexpr u8 min_speed = 60;
+
+  void main_1()
+  {
+    Serial.begin(2'000'000);
+    left_motor.init();
+    right_motor.init();
+    for(auto& photo: photos) photo.init();
+    delay(3000);
+
+    while(true) {
+      u16 sensor_values[5]{};
+      for(u8 sample_time = 0; sample_time < sample_count; ++sample_time) for(u8 i = 0; i < 5; ++i) {
+        sensor_values[i] += photos[i].read();
+      }
+
+      u8 max_sensor = 0;
+      u8 index = 0;
+      for(u8 i = 0; i < 5; ++i) {
+        const u8 this_sensor = sensor_values[i] / sample_count;
+        // Serial.print("s");
+        // Serial.print(i);
+        // Serial.print(":");
+        // Serial.print(this_sensor);
+        // Serial.print(",");
+        if(max_sensor < this_sensor) {
+          max_sensor = this_sensor;
+          index = i;
+        }
+      }
+      // Serial.print("\n");
+
+      if(max_sensor < threthold) {
+        break;
+      } else {
+        switch(index) {
+          case 0:
+          left_motor.forward(min_speed);
+          right_motor.forward(max_speed);
+          break;
+          
+          case 1:
+          left_motor.forward(middle_speed);
+          right_motor.forward(max_speed);
+          break;
+
+          case 2:
+          left_motor.forward(max_speed);
+          right_motor.forward(max_speed);
+          break;
+
+          case 3:
+          left_motor.forward(max_speed);
+          right_motor.forward(middle_speed);
+          break;
+
+          case 4:
+          left_motor.forward(max_speed);
+          right_motor.forward(min_speed);
+          break;
+        }
+      }
+    }
+
+    left_motor.brake();
+    right_motor.brake();
+    delay(500);
+
+    while(true) {
+      u16 sensor_values[5]{};
+      for(u8 sample_time = 0; sample_time < sample_count; ++sample_time) for(u8 i = 0; i < 5; ++i) {
+        sensor_values[i] += photos[i].read();
+      }
+
+      u8 max_sensor = 0;
+      u8 index = 0;
+      for(u8 i = 0; i < 5; ++i) {
+        if(const u8 this_sensor = sensor_values[i] / sample_count; max_sensor < this_sensor) {
+          max_sensor = this_sensor;
+          index = i;
+        }
+      }
+
+      switch(index) {
+        case 0:
+        left_motor.backward(max_speed);
+        right_motor.backward(min_speed);
+        break;
+        
+        case 1:
+        left_motor.backward(max_speed);
+        right_motor.backward(middle_speed);
+        break;
+
+        case 2:
+        left_motor.backward(max_speed);
+        right_motor.backward(max_speed);
+        break;
+
+        case 3:
+        left_motor.backward(middle_speed);
+        right_motor.backward(max_speed);
+        break;
+
+        case 4:
+        left_motor.backward(min_speed);
+        right_motor.backward(max_speed);
+        break;
+      }
+    }
+  }
+
+  void main_2() {
+    using jkb21::Motor;
+    using jkb21::Photo;
+
+    Serial.begin(2'000'000);
+    left_motor.init();
+    right_motor.init();
+    for(auto& photo: photos) photo.init();
+    delay(3000);
+
+    go_forward: while(true) {
+      u16 sensor_values[5]{};
+      for(u8 sample_time = 0; sample_time < sample_count; ++sample_time) for(u8 i = 0; i < 5; ++i) {
+        sensor_values[i] += photos[i].read();
+      }
+
+      u8 max_sensor = 0;
+      u8 index = 0;
+      for(u8 i = 0; i < 5; ++i) {
+        if(const u8 this_sensor = sensor_values[i] / sample_count; max_sensor < this_sensor) {
+          max_sensor = this_sensor;
+          index = i;
+        }
+      }
+
+      if(max_sensor < threthold) {
+        break;
+      } else {
+        switch(index) {
+          case 0:
+          left_motor.forward(min_speed);
+          right_motor.forward(max_speed);
+          break;
+          
+          case 1:
+          left_motor.forward(middle_speed);
+          right_motor.forward(max_speed);
+          break;
+
+          case 2:
+          left_motor.forward(max_speed);
+          right_motor.forward(max_speed);
+          break;
+
+          case 3:
+          left_motor.forward(max_speed);
+          right_motor.forward(middle_speed);
+          break;
+
+          case 4:
+          left_motor.forward(max_speed);
+          right_motor.forward(min_speed);
+          break;
+        }
+      }
+    }
+
+    left_motor.brake();
+    right_motor.brake();
+    delay(500);
+
+    u32 start_time = millis();
+    while(millis() - start_time < 5000) {
+      left_motor.backward(middle_speed);
+      right_motor.forward(middle_speed);
+    }
+
+    goto go_forward;
+  }
+
+  void main_3() {
+    using jkb21::Motor;
+    using jkb21::Photo;
+
+    Serial.begin(2'000'000);
+    left_motor.init();
+    right_motor.init();
+    for(auto& photo: photos) photo.init();
+    delay(3000);
+
+    while(true) {
+      u16 sensor_values[5]{};
+      for(u8 sample_time = 0; sample_time < sample_count; ++sample_time) for(u8 i = 0; i < 5; ++i) {
+        sensor_values[i] += photos[i].read();
+      }
+
+      u8 max_sensor = 0;
+      u8 index = 0;
+      for(u8 i = 0; i < 5; ++i) {
+        if(const u8 this_sensor = sensor_values[i] / sample_count; max_sensor < this_sensor) {
+          max_sensor = this_sensor;
+          index = i;
+        }
+      }
+
+      if(max_sensor < threthold) {
+        break;
+      } else {
+        switch(index) {
+          case 0:
+          left_motor.forward(min_speed);
+          right_motor.forward(max_speed);
+          break;
+          
+          case 1:
+          left_motor.forward(middle_speed);
+          right_motor.forward(max_speed);
+          break;
+
+          case 2:
+          left_motor.forward(max_speed);
+          right_motor.forward(max_speed);
+          break;
+
+          case 3:
+          left_motor.forward(max_speed);
+          right_motor.forward(middle_speed);
+          break;
+
+          case 4:
+          left_motor.forward(max_speed);
+          right_motor.forward(min_speed);
+          break;
+        }
+      }
+    }
+  }
+}
+
+// void main_1()
+// {
+//   Serial.begin(9600);
+
+//   using namespace mystd::integer_types;
+
+//   auto left_motor = Motor::make(10, 11, true);
+//   auto right_motor = Motor::make(3, 9, false);
+
+//   auto line_pos = 0;
+//   bool is_backing = false;
+
+//   while (true)
+//   {
+//     if (photo_line.is_lost())
+//     {
+//       left_motor.mode.value = Mode::Brake;
+//       right_motor.mode.value = Mode::Brake;
+
+//       delay(500);
+
+//       left_motor.mode.value = flip_mode(left_direction);
+//       right_motor.mode.value = flip_mode(right_direction);
+//       is_backing = true;
+//     }
+
+//     line_pos = photo_line.fusion() * (is_backing ? 1 : -1);
+
+//     if (mystd::math_algo::abs(line_pos) < straight_threshold)
+//     {
+//       left_motor.pwm = max_speed;
+//       right_motor.pwm = max_speed;
+//     }
+//     else if (line_pos > 0)
+//     {
+//       left_motor.pwm = max_speed;
+//       right_motor.pwm = 0;
+//     }
+//     else
+//     {
+//       left_motor.pwm = 0;
+//       right_motor.pwm = max_speed;
+//     }
+
+//     left_motor.update();
+//     right_motor.update();
+//   }
+
+//   left_motor.pwm = 0;
+//   left_motor.update();
+//   right_motor.pwm = 0;
+//   right_motor.update();
+// }
 
 void setup()
 {
-  Serial.begin(9600);
-
-  using namespace mystd::integer_types;
-  using jkb21::motor::Motor;
-  using jkb21::motor::Mode;
-  using jkb21::motor::flip_mode;
-  using jkb21::photo::Photo;
-  using jkb21::photo::PhotoLine;
-  using jkb21::pid::Pid;
-
-  constexpr u8 max_speed = 80;
-  constexpr i8 straight_threshold = 50;
-
-  auto left_motor = Motor::make(10, 11);
-  auto right_motor = Motor::make(3,9);
-  
-  // auto photo_line = PhotoLine<3>::make({Photo::make(A0, -124), Photo::make(A1, -41), Photo::make(A2, 124)});
-  auto photo_line = PhotoLine<3>::make({Photo::make(A0, -124), Photo::make(A1, 0), Photo::make(A2, 124)});
-  auto pid = Pid<i8>::make(10, 0, 0);
-
-  constexpr auto left_direction = Mode::CounterClockwise;
-  constexpr auto right_direction = Mode::Clockwise;
-
-  left_motor.mode.value = left_direction;
-  right_motor.mode.value = right_direction;
-
-  State state = State::Default;
-  auto line_pos = 0;
-
-  // u8 sstate = 0;
-
-  while(true)
-  {
-    switch(state)
-    {
-      case State::Default:
-      {
-        if(photo_line.is_lost())
-        {
-          // state = State::Lost;
-          break;
-        }
-
-        line_pos = photo_line.fusion();
-        Serial.print("line_pos:");
-        Serial.print(line_pos);
-        Serial.print(",");
-
-        const auto pid_result = pid.calc(line_pos, 0) / 10;
-        pid.update(line_pos);
-
-        Serial.print("pid_result:");
-        Serial.print(pid_result);
-        Serial.print(",");
-
-        // if(photo_line.is_all_black())
-        // {
-        //   break;
-        // }
-
-        if(pid_result > straight_threshold)
-        {
-          left_motor.pwm = max_speed;
-          right_motor.pwm = max_speed * (128 - mystd::math_algo::abs(pid_result)) / 128;
-        }
-        else if(pid_result < -straight_threshold)
-        {
-          left_motor.pwm = max_speed * (128 - mystd::math_algo::abs(pid_result)) / 128;
-          right_motor.pwm = max_speed;
-        }
-        else
-        {
-          left_motor.pwm = max_speed;
-          right_motor.pwm = max_speed;
-        }
-      
-        Serial.println();
-      }
-      break;
-
-      case State::Lost:
-      {
-        if(!photo_line.is_lost())
-        {
-          state = State::Default;
-          left_motor.mode.value = left_direction;
-          right_motor.mode.value = right_direction;
-        }
-      }
-      break;
-    }
-
-    // Serial.println(state == State::Default ? "default" : "lost");
-
-    // if(photo_line.is_lost())
-    // {
-    //   sstate++;
-    //   sstate %= 4;
-    // }
-
-    // if(!(sstate % 2))
-    // {
-    //   left_motor.pwm = max_speed;
-    //   right_motor.pwm = max_speed;
-    // }
-    // else if(sstate = 1)
-    // {
-    //   left_motor.pwm = max_speed;
-    //   right_motor.pwm = 0;
-    // }
-    // else
-    // {
-    //   left_motor.pwm = 0;
-    //   right_motor.pwm = max_speed;
-    // }
-
-    left_motor.update();
-    right_motor.update();
-  }
-
-  left_motor.pwm = 0;
-  left_motor.update();
-  right_motor.pwm = 0;
-  right_motor.update();
+  Mains::main_1();
+  // Mains::main_2();
+  // Mains::main_3();
 }
 
 void loop()
