@@ -6,7 +6,8 @@ namespace Mains
 {
 	constexpr auto sample_count = 20;
 	constexpr auto threthold = 50;
-	constexpr u16 brake_prescaler = 500;
+	constexpr u16 brake_prescaler = 2;
+  constexpr u8 multiplier = 3;
 
 	enum class State : u8
 	{
@@ -23,7 +24,7 @@ namespace Mains
 		u8 brake_count = 0;
 		u16 brake_timer = 0;
 
-		delay(1000);
+		delay(2000);
 
 		while (true)
 		{
@@ -74,18 +75,18 @@ namespace Mains
 			switch (state)
 			{
 			case State::Forward:
-				robot.left_motor.forward(100);
-				robot.right_motor.forward(100);
+				robot.left_motor.forward(255);
+				robot.right_motor.forward(255);
 				break;
 
 			case State::Left:
-				robot.left_motor.forward(mystd::min<u8>(80 - brake_count, 0));
-				robot.right_motor.forward(100);
+				robot.left_motor.forward(mystd::max<u8>(255 - multiplier * brake_count, 0));
+				robot.right_motor.forward(255);
 				break;
 
 			case State::Right:
-				robot.left_motor.forward(100);
-				robot.right_motor.forward(mystd::min<u8>(80 - brake_count, 0));
+				robot.left_motor.forward(255);
+				robot.right_motor.forward(mystd::max<u8>(255 - multiplier * brake_count, 0));
 			}
 
 			delay(1);
